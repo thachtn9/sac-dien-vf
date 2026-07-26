@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PortSelector } from '../components/PortSelector'
 import { QrCapture } from '../components/QrCapture'
 import { PillarStatusBadge, pillarLabels } from '../components/StatusBadge'
@@ -12,12 +12,14 @@ const LONG_PRESS_MS = 550
 
 export function PillarDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const {
     pillars,
     loading,
     updatePillarStatus,
     updatePillarQr,
     updatePillarName,
+    deletePillar,
     updatePortStatus,
   } = usePillars()
   const [note, setNote] = useState<string | null>(null)
@@ -27,6 +29,7 @@ export function PillarDetail() {
   const [pendingQr, setPendingQr] = useState<string | null>(null)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -138,6 +141,19 @@ export function PillarDetail() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!pillar) return
+    try {
+      setBusy(true)
+      setMessage(null)
+      await deletePillar(pillar.id)
+      navigate('/', { replace: true })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Không xóa được trụ')
+      setBusy(false)
+    }
+  }
+
   if (loading && !pillar) {
     return <p className="text-sm text-vf-navy/50">Đang tải…</p>
   }
@@ -230,7 +246,10 @@ export function PillarDetail() {
               onContextMenu={(e) => e.preventDefault()}
             >
               {pillar.qr_code}
-            </button>          
+            </button>
+            <p className="mt-0.5 text-[11px] text-vf-navy/40">
+              Nhấn giữ tên để đổi tên · Nhấn giữ mã để đổi QR
+            </p>
           </div>
           <PillarStatusBadge
             status={pillar.status}
@@ -238,6 +257,7 @@ export function PillarDetail() {
             onClick={() => void cyclePillarStatus()}
           />
         </div>
+        <p className="mt-1 text-right text-[11px] text-vf-navy/45">Chạm badge để đổi status</p>
       </div>
 
       {editingQr ? (
@@ -311,6 +331,44 @@ export function PillarDetail() {
         >
           Lưu ghi chú
         </button>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-red-200 bg-red-50/70 p-4">
+        <h3 className="text-sm font-semibold text-red-800">Xóa trụ</h3>
+        {!confirmDelete ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirmDelete(true)}
+            className="w-full rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 disabled:opacity-50"
+          >
+            Xóa trụ sạc này
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-red-800">
+              Xóa <strong>{pillar.name}</strong>? Cổng và lịch sử sạc gắn trụ cũng sẽ bị xóa.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 rounded-xl border border-vf-navy/15 bg-white px-4 py-2.5 text-sm font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleDelete()}
+                className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {busy ? 'Đang xóa…' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {message ? <p className="text-sm text-vf-navy/70">{message}</p> : null}

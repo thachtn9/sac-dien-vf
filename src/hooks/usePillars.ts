@@ -123,6 +123,13 @@ export function usePillars() {
     await fetchPillars()
   }
 
+  const deletePillar = async (id: string) => {
+    const sb = requireSupabase()
+    const { error: err } = await sb.from('pillars').delete().eq('id', id)
+    if (err) throw err
+    await fetchPillars()
+  }
+
   const updatePortStatus = async (id: string, status: PortStatus, note?: string) => {
     const sb = requireSupabase()
     const payload: Partial<Port> = { status }
@@ -232,6 +239,7 @@ export function usePillars() {
     updatePillarStatus,
     updatePillarQr,
     updatePillarName,
+    deletePillar,
     updatePortStatus,
     getPillarByQr,
     startUsage,
