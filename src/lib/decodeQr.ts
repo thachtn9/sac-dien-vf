@@ -1,10 +1,31 @@
-import jsQR from 'jsqr'
+import jsQR, { type QRCode } from 'jsqr'
 
-export function decodeQrFromImageData(imageData: ImageData): string | null {
+export type QrPoint = { x: number; y: number }
+
+export type QrHit = {
+  data: string
+  /** Corners in source (video/image) pixel space */
+  corners?: [QrPoint, QrPoint, QrPoint, QrPoint]
+}
+
+export function decodeQrFromImageData(imageData: ImageData): QrHit | null {
   const code = jsQR(imageData.data, imageData.width, imageData.height, {
     inversionAttempts: 'attemptBoth',
   })
-  return code?.data?.trim() || null
+  if (!code?.data?.trim()) return null
+  return {
+    data: code.data.trim(),
+    corners: cornersFromJsQr(code),
+  }
+}
+
+function cornersFromJsQr(code: QRCode): [QrPoint, QrPoint, QrPoint, QrPoint] {
+  return [
+    code.location.topLeftCorner,
+    code.location.topRightCorner,
+    code.location.bottomRightCorner,
+    code.location.bottomLeftCorner,
+  ]
 }
 
 type FrameSource = HTMLCanvasElement | HTMLVideoElement | HTMLImageElement
@@ -22,11 +43,23 @@ function sourceSize(source: FrameSource): { sw: number; sh: number } | null {
   return { sw: source.width, sh: source.height }
 }
 
+function mapCorners(
+  corners: [QrPoint, QrPoint, QrPoint, QrPoint],
+  scale: number,
+  sx: number,
+  sy: number,
+): [QrPoint, QrPoint, QrPoint, QrPoint] {
+  return corners.map((p) => ({
+    x: p.x / scale + sx,
+    y: p.y / scale + sy,
+  })) as [QrPoint, QrPoint, QrPoint, QrPoint]
+}
+
 /** Decode QR from a canvas/video/image. Tries center crop scales then full frame sizes. */
 export function decodeQrFromCanvas(
   source: FrameSource,
   opts?: { cropRatio?: number },
-): string | null {
+): QrHit | null {
   const size = sourceSize(source)
   if (!size) return null
   const { sw, sh } = size
@@ -51,15 +84,26 @@ export function decodeQrFromCanvas(
     canvas.height = th
     ctx.drawImage(source, sx, sy, cw, ch, 0, 0, tw, th)
     const imageData = ctx.getImageData(0, 0, tw, th)
-    const value = decodeQrFromImageData(imageData)
-    if (value) return value
+    const hit = decodeQrFromImageData(imageData)
+    if (hit) {
+      return {
+        data: hit.data,
+        corners: hit.corners ? mapCorners(hit.corners, scale, sx, sy) : undefined,
+      }
+    }
   }
 
   return null
 }
 
+type DetectedBarcodeLike = {
+  rawValue?: string
+  cornerPoints?: Array<{ x: number; y: number }>
+  boundingBox?: { x: number; y: number; width: number; height: number }
+}
+
 type BarcodeDetectorLike = {
-  detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>
+  detect: (source: ImageBitmapSource) => Promise<DetectedBarcodeLike[]>
 }
 
 function getBarcodeDetector(): BarcodeDetectorLike | null {
@@ -73,13 +117,34 @@ function getBarcodeDetector(): BarcodeDetectorLike | null {
   }
 }
 
-export async function decodeQrNative(source: ImageBitmapSource): Promise<string | null> {
+export async function decodeQrNative(source: ImageBitmapSource): Promise<QrHit | null> {
   const detector = getBarcodeDetector()
   if (!detector) return null
   try {
     const codes = await detector.detect(source)
-    const value = codes[0]?.rawValue?.trim()
-    return value || null
+    const code = codes[0]
+    const value = code?.rawValue?.trim()
+    if (!value) return null
+
+    let corners: QrHit['corners']
+    if (code.cornerPoints && code.cornerPoints.length >= 4) {
+      corners = [
+        code.cornerPoints[0],
+        code.cornerPoints[1],
+        code.cornerPoints[2],
+        code.cornerPoints[3],
+      ]
+    } else if (code.boundingBox) {
+      const { x, y, width, height } = code.boundingBox
+      corners = [
+        { x, y },
+        { x: x + width, y },
+        { x: x + width, y: y + height },
+        { x, y: y + height },
+      ]
+    }
+
+    return { data: value, corners }
   } catch {
     return null
   }

@@ -1,4 +1,4 @@
-import { decodeQrFromCanvas, decodeQrFromImageData, decodeQrNative } from './decodeQr'
+import { decodeQrFromImageData, decodeQrFromCanvas, decodeQrNative } from './decodeQr'
 
 function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -25,12 +25,11 @@ export async function scanQrFromFile(file: File): Promise<string> {
   const img = await loadImageFromFile(file)
 
   const native = await decodeQrNative(img)
-  if (native) return native
+  if (native) return native.data
 
   const fromCanvas = decodeQrFromCanvas(img)
-  if (fromCanvas) return fromCanvas
+  if (fromCanvas) return fromCanvas.data
 
-  // Extra pass at several fixed sizes
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (ctx) {
@@ -41,8 +40,8 @@ export async function scanQrFromFile(file: File): Promise<string> {
       canvas.width = w
       canvas.height = h
       ctx.drawImage(img, 0, 0, w, h)
-      const value = decodeQrFromImageData(ctx.getImageData(0, 0, w, h))
-      if (value) return value
+      const hit = decodeQrFromImageData(ctx.getImageData(0, 0, w, h))
+      if (hit) return hit.data
     }
   }
 
