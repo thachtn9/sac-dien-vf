@@ -76,15 +76,21 @@ export function QrCapture({ onDetected, paused = false, initialMode = 'camera' }
             id={fileInputId}
             type="file"
             accept="image/*"
+            capture="environment"
             className="sr-only"
             onChange={(e) => void handleFile(e.target.files?.[0])}
           />
-          <label
-            htmlFor={fileInputId}
-            className="mt-4 inline-flex cursor-pointer rounded-xl bg-vf-teal px-4 py-2.5 text-sm font-semibold text-white hover:bg-vf-teal-dark"
-          >
-            {imageBusy ? 'Đang đọc…' : 'Chọn ảnh QR'}
-          </label>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <label
+              htmlFor={fileInputId}
+              className="inline-flex cursor-pointer rounded-xl bg-vf-teal px-4 py-2.5 text-sm font-semibold text-white hover:bg-vf-teal-dark"
+            >
+              {imageBusy ? 'Đang đọc…' : 'Chụp / chọn ảnh QR'}
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-vf-navy/50">
+            Camera máy native thường đọc QR tốt hơn — chụp ảnh rồi chọn ở đây cũng được.
+          </p>
           {imageName ? <p className="mt-2 truncate text-xs text-vf-navy/45">{imageName}</p> : null}
           {imageError ? <p className="mt-2 text-sm text-red-600">{imageError}</p> : null}
         </div>
