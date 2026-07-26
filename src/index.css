@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --color-vf-teal: #00b0a6;
+  --color-vf-teal-dark: #008f87;
+  --color-vf-navy: #0a2540;
+  --color-vf-navy-soft: #14324f;
+  --color-vf-mist: #e8f7f6;
+  --color-vf-sand: #f3f6f8;
+  --font-display: "Be Vietnam Pro", "Segoe UI", sans-serif;
+  --font-body: "Be Vietnam Pro", "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--color-vf-navy);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(0, 176, 166, 0.18), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgba(10, 37, 64, 0.08), transparent 50%),
+      linear-gradient(180deg, #f7fbfb 0%, #eef3f6 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
