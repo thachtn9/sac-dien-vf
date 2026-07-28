@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PortSelector } from '../components/PortSelector'
 import { QrCapture } from '../components/QrCapture'
+import { QrPreviewModal } from '../components/QrPreviewModal'
 import { PillarStatusBadge, pillarLabels } from '../components/StatusBadge'
 import { usePillars } from '../hooks/usePillars'
 import type { PillarStatus, Port, PortStatus } from '../types'
@@ -9,6 +10,7 @@ import type { PillarStatus, Port, PortStatus } from '../types'
 const pillarStatusCycle: PillarStatus[] = ['active', 'faulty', 'offline']
 const portStatusCycle: PortStatus[] = ['available', 'in_use', 'faulty']
 const LONG_PRESS_MS = 550
+const DOUBLE_TAP_MS = 350
 
 export function PillarDetail() {
   const { id } = useParams<{ id: string }>()
@@ -30,7 +32,9 @@ export function PillarDetail() {
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showQrPreview, setShowQrPreview] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastQrTapRef = useRef(0)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
   const pillar = useMemo(() => pillars.find((p) => p.id === id), [pillars, id])
@@ -48,11 +52,37 @@ export function PillarDetail() {
 
   const startLongPress = (action: () => void) => {
     clearPress()
-    pressTimer.current = setTimeout(action, LONG_PRESS_MS)
+    pressTimer.current = setTimeout(() => {
+      pressTimer.current = null
+      action()
+    }, LONG_PRESS_MS)
   }
 
   const endPress = () => {
     clearPress()
+  }
+
+  const handleQrCodeShortTap = () => {
+    const now = Date.now()
+    if (now - lastQrTapRef.current < DOUBLE_TAP_MS) {
+      lastQrTapRef.current = 0
+      setShowQrPreview(true)
+      setEditingQr(false)
+      setEditingName(false)
+      setMessage(null)
+      return
+    }
+    lastQrTapRef.current = now
+  }
+
+  const copyQrCode = async () => {
+    if (!pillar) return
+    try {
+      await navigator.clipboard.writeText(pillar.qr_code)
+      setMessage('Đã sao chép mã trụ')
+    } catch {
+      setMessage('Không sao chép được mã')
+    }
   }
 
   const cyclePillarStatus = async () => {
@@ -228,28 +258,55 @@ export function PillarDetail() {
                 {pillar.name}
               </button>
             )}
-            <button
-              type="button"
-              className="mt-1 max-w-full select-none break-all rounded-md px-1 py-0.5 text-left font-mono text-xs text-vf-navy/50 outline-none transition hover:bg-vf-navy/5 active:bg-vf-teal/10"
-              title="Nhấn giữ để đổi mã QR"
-              onPointerDown={() =>
-                startLongPress(() => {
-                  setEditingQr(true)
-                  setPendingQr(null)
-                  setEditingName(false)
-                  setMessage(null)
-                })
-              }
-              onPointerUp={endPress}
-              onPointerLeave={endPress}
-              onPointerCancel={endPress}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              {pillar.qr_code}
-            </button>
-            <p className="mt-0.5 text-[11px] text-vf-navy/40">
-              Nhấn giữ tên để đổi tên · Nhấn giữ mã để đổi QR
-            </p>
+            <div className="mt-1 flex items-start gap-1">
+              <button
+                type="button"
+                className="min-w-0 flex-1 select-none break-all rounded-md px-1 py-0.5 text-left font-mono text-xs text-vf-navy/50 outline-none transition hover:bg-vf-navy/5 active:bg-vf-teal/10"
+                title="Nhấp đúp để xem QR · Nhấn giữ để đổi mã"
+                onPointerDown={() =>
+                  startLongPress(() => {
+                    lastQrTapRef.current = 0
+                    setEditingQr(true)
+                    setPendingQr(null)
+                    setEditingName(false)
+                    setShowQrPreview(false)
+                    setMessage(null)
+                  })
+                }
+                onPointerUp={() => {
+                  const shortTap = pressTimer.current !== null
+                  endPress()
+                  if (shortTap) handleQrCodeShortTap()
+                }}
+                onPointerLeave={endPress}
+                onPointerCancel={endPress}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                {pillar.qr_code}
+              </button>
+              <button
+                type="button"
+                onClick={() => void copyQrCode()}
+                title="Sao chép mã trụ"
+                aria-label="Sao chép mã trụ"
+                className="shrink-0 rounded-md p-1.5 text-vf-navy/40 outline-none transition hover:bg-vf-navy/5 hover:text-vf-teal-dark active:bg-vf-teal/10"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+            </div>
           </div>
           <PillarStatusBadge
             status={pillar.status}
@@ -257,7 +314,6 @@ export function PillarDetail() {
             onClick={() => void cyclePillarStatus()}
           />
         </div>
-        <p className="mt-1 text-right text-[11px] text-vf-navy/45">Chạm badge để đổi status</p>
       </div>
 
       {editingQr ? (
@@ -372,6 +428,14 @@ export function PillarDetail() {
       </section>
 
       {message ? <p className="text-sm text-vf-navy/70">{message}</p> : null}
+
+      {showQrPreview ? (
+        <QrPreviewModal
+          value={pillar.qr_code}
+          title={pillar.name}
+          onClose={() => setShowQrPreview(false)}
+        />
+      ) : null}
     </div>
   )
 }
